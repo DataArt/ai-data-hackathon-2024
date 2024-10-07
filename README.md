@@ -1,5 +1,25 @@
 <img align="right" width="25%" src="https://natwest.gitlab-dedicated.com/natwestgroup/DigitalX/Technology/EnterpriseEngineering/OSPO/ospo-mascot-and-design-resources/-/raw/main/OSPO%20Mascot/live-mascot/live-ospo-mascot.png?ref_type=heads">
 
+# Project Setup with Poetry
+
+Install poetry: https://python-poetry.org/docs/ (might take a while)
+
+Run the following command to initialize a Poetry project with a virtual environment:
+```bash
+# Initialize a new project
+poetry install --no-root
+
+# Install dependencies
+poetry shell
+```
+
+# Run Streamlit App
+```bash
+# Set up .env file, aws-cli and then run the following command
+streamlit run app.py
+```
+
+
 # README Template
 
 ## Suggestions for a good README

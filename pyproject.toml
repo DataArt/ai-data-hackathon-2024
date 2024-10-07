@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "hachathon"
+version = "0.1.0"
+description = ""
+package-mode = false
+authors = []
+
+
+[tool.poetry.dependencies]
+python = "^3.12"
+python-dotenv = "*"
+fsspec = "*"
+s3fs = "*"
+pandasql = "*"
+streamlit = "*"
+langchain_aws = "*"
+snowflake-connector-python = "*"
+pandas = "*"
+ipykernel = "*"
+langchain-community = "*"
+langgraph = "*"
+langgraph-checkpoint-sqlite = "*"
+matplotlib = "^3.9.2"
