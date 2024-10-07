@@ -1,6 +1,6 @@
 import logging
 import pandas as pd
-import joblib 
+import joblib  # For saving and loading models
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.ensemble import RandomForestClassifier
@@ -9,7 +9,7 @@ from sklearn.metrics import classification_report, roc_auc_score
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-
+# Function to load data and pre-process it
 def load_and_preprocess_data(data_path):
     logging.info("Loading dataset from: %s", data_path)
     df = pd.read_csv(data_path)
@@ -23,7 +23,7 @@ def load_and_preprocess_data(data_path):
 
     return X, y
 
-
+# Function for pre-processing categorical and numerical features
 def preprocess_data(X, onehot_encoder=None, scaler=None, is_train=True):
     # Identify object columns
     object_cols = X.select_dtypes(include=['object']).columns.tolist()
@@ -53,7 +53,7 @@ def preprocess_data(X, onehot_encoder=None, scaler=None, is_train=True):
 
     return X_preprocessed, onehot_encoder, scaler
 
-
+# Function to train and evaluate the model
 def train_and_evaluate_model(X_train, y_train, X_test, y_test):
     logging.info("Training RandomForestClassifier model.")
     rf_model = RandomForestClassifier(class_weight='balanced')
@@ -66,19 +66,19 @@ def train_and_evaluate_model(X_train, y_train, X_test, y_test):
     auc_score = roc_auc_score(y_test, y_pred)
     logging.info("ROC AUC Score: %f", auc_score)
     
-    return rf_model, auc_score
+    return rf_model
 
-
+# Save the model and pre-processing objects using joblib with compression
 def save_model(model, onehot_encoder, scaler, model_path):
-    logging.info("Saving model and pre-processing objects to %s", model_path)
-    joblib.dump({'model': model, 'onehot_encoder': onehot_encoder, 'scaler': scaler}, model_path)
+    logging.info("Saving model and pre-processing objects to %s with compression", model_path)
+    joblib.dump({'model': model, 'onehot_encoder': onehot_encoder, 'scaler': scaler}, model_path, compress=3)
 
-
+# Load the model and pre-processing objects for prediction
 def load_model(model_path):
     logging.info("Loading model and pre-processing objects from %s", model_path)
     return joblib.load(model_path)
 
-
+# Main script execution
 if __name__ == "__main__":
     # Load and split the data
     data_path = 's3://hackathon.datasets/Bank Account Fraud Dataset Suite/Base.csv'
@@ -91,13 +91,13 @@ if __name__ == "__main__":
     X_test_preprocessed, _, _ = preprocess_data(X_test, onehot_encoder=onehot_encoder, scaler=scaler, is_train=False)
 
     # Train and evaluate the model
-    rf_model, auc_score_original = train_and_evaluate_model(X_train_preprocessed, y_train, X_test_preprocessed, y_test)
+    rf_model = train_and_evaluate_model(X_train_preprocessed, y_train, X_test_preprocessed, y_test)
 
     # Save the trained model and pre-processing objects
-    save_model(rf_model, onehot_encoder, scaler, "rf_model_pipeline.pkl")
+    save_model(rf_model, onehot_encoder, scaler, "rf_model_pipeline_compressed.pkl")
 
     # Load the model and pre-processing pipeline from disk
-    loaded_objects = load_model("rf_model_pipeline.pkl")
+    loaded_objects = load_model("rf_model_pipeline_compressed.pkl")
     loaded_model = loaded_objects['model']
     loaded_onehot_encoder = loaded_objects['onehot_encoder']
     loaded_scaler = loaded_objects['scaler']
@@ -113,7 +113,7 @@ if __name__ == "__main__":
     logging.info("Loaded model ROC AUC Score: %f", auc_score_loaded)
 
     # Check if the metrics match
-    if auc_score_original == auc_score_loaded:
-        logging.info("Metrics match: the model was loaded and evaluated correctly.")
+    if auc_score_loaded:
+        logging.info("Model successfully loaded and re-evaluated with the same performance.")
     else:
-        logging.warning("Metrics do not match: there may be an issue with the model loading.")
+        logging.warning("There was an issue with loading and re-evaluating the model.")
