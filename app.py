@@ -1,3 +1,17 @@
+from langchain.agents import AgentType
+from langgraph.checkpoint.memory import MemorySaver
+from langchain.callbacks import StreamlitCallbackHandler
+from langchain_aws import ChatBedrock
+import streamlit as st
+import pandas as pd
+from langchain.agents.agent import AgentExecutor
+# from src.tools import query_financial_df, classify_fraud, show_column_distribution
+from langchain_core.messages import HumanMessage
+
+import os
+
+from langgraph.prebuilt import create_react_agent
+
 from typing import List
 import pandasql as ps
 import random
@@ -28,8 +42,8 @@ def classify_fraud(query: str) -> List:
     """
     input_df = ps.sqldf(query)
     return [random.choice([0, 1]) for _ in range(len(input_df))]
-    
-    
+
+
 @tool(parse_docstring=True)
 def query_financial_df(query: str):
     """
@@ -76,3 +90,63 @@ def query_financial_df(query: str):
     """
     res_df = ps.sqldf(query)
     return res_df if len(res_df) < 10 else res_df.head(10)
+
+df = pd.read_csv('s3://hackathon.datasets/Bank Account Fraud Dataset Suite/Base.csv', nrows=100)
+
+
+def get_agent(llm):
+    memory = MemorySaver()
+    tools = [query_financial_df, classify_fraud, show_column_distribution]
+    agent_executor = create_react_agent(llm, tools, checkpointer=memory)
+    return agent_executor
+
+
+def clear_submit():
+    """
+    Clear the Submit Button State
+    Returns:
+
+    """
+    st.session_state["submit"] = False
+
+
+
+st.set_page_config(page_title="LangChain: Chat with pandas DataFrame", page_icon="🦜")
+st.title("🦜 LangChain: Chat with pandas DataFrame")
+
+if "messages" not in st.session_state or st.sidebar.button("Clear conversation history"):
+    st.session_state["messages"] = [{"role": "assistant", "content": "How can I help you?"}]
+
+for msg in st.session_state.messages:
+    st.chat_message(msg["role"]).write(msg["content"])
+
+if prompt := st.chat_input(placeholder="What is this data about?"):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    st.chat_message("user").write(prompt)
+
+
+    llm = ChatBedrock(
+        model_id="anthropic.claude-3-sonnet-20240229-v1:0",
+        model_kwargs=dict(temperature=0),
+    )
+
+    agent = get_agent(llm=llm)
+
+
+    with st.chat_message("assistant"):
+        st_cb = StreamlitCallbackHandler(st.container(), expand_new_thoughts=False)
+        # response = agent.run(st.session_state.messages, callbacks=[st_cb])
+        # st.session_state.messages.append({"role": "assistant", "content": response})
+        # st.write(response)
+        for chunk in agent.stream(
+                {"messages": [HumanMessage(content=prompt)]}, config={"configurable": {"thread_id": 42}}
+        ):
+            # st.write(chunk)
+            if "agent" in chunk:
+                agnt_msg = chunk['agent']['messages'][0]
+                if agnt_msg.content:
+                    st.write(agnt_msg.content)
+                else:
+                    st.write(agnt_msg.tool_calls)
+            else:
+                st.write(chunk['tools']['messages'][0].content)
