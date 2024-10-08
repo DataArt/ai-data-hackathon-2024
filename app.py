@@ -1,25 +1,22 @@
-from langchain.agents import AgentType
+from typing import List
+import joblib
+import logging
+
 from langgraph.checkpoint.memory import MemorySaver
 from langchain.callbacks import StreamlitCallbackHandler
 from langchain_aws import ChatBedrock
-import streamlit as st
-import pandas as pd
-from langchain.agents.agent import AgentExecutor
-# from src.tools import query_financial_df, classify_fraud, show_column_distribution
 from langchain_core.messages import HumanMessage
-import boto3
-
-import os
-
 from langgraph.prebuilt import create_react_agent
-
-from typing import List
-import pandasql as ps
-import random
 from langchain_core.tools import tool
+
 import pandas as pd
+import pandasql as ps
+import streamlit as st
+
+from src.model import preprocess_data
 
 
+# TOOLS
 @tool(parse_docstring=True)
 def show_column_distribution(column: str) -> pd.Series:
     """
@@ -34,7 +31,7 @@ def show_column_distribution(column: str) -> pd.Series:
 
 
 @tool(parse_docstring=True)
-def classify_fraud(query: str) -> List:
+def classify_fraud(query: str):
     """
     Classify rows of the df whether they are fraud or not.
 
@@ -42,9 +39,29 @@ def classify_fraud(query: str) -> List:
         query: SQL query string to execute on the DataFrame to obtain df rows to classify
     """
     input_df = ps.sqldf(query)
-    return [random.choice([0, 1]) for _ in range(len(input_df))]
 
+    # Load the saved model and pre-processing objects from the disk
+    logging.info("Loading model and pre-processing pipeline from: %s")
+    loaded_objects = joblib.load("rf_model_pipeline_compressed.pkl")
+    loaded_model = loaded_objects['model']
+    loaded_onehot_encoder = loaded_objects['onehot_encoder']
+    loaded_scaler = loaded_objects['scaler']
 
+    # Drop any columns that were not used in the model training
+    logging.info("Dropping columns that were not used in training.")
+    input_df = input_df.drop(['device_fraud_count', 'fraud_bool'], axis=1, errors='ignore')
+
+    # Apply the same pre-processing to the input data
+    logging.info("Applying pre-processing to the input data.")
+    X_preprocessed, _, _ = preprocess_data(input_df, onehot_encoder=loaded_onehot_encoder, scaler=loaded_scaler, is_train=False)
+
+    # Make predictions using the loaded model
+    logging.info("Making predictions.")
+    predictions = loaded_model.predict(X_preprocessed)
+
+    return predictions
+
+    
 @tool(parse_docstring=True)
 def query_financial_df(query: str):
     """
@@ -92,14 +109,16 @@ def query_financial_df(query: str):
     res_df = ps.sqldf(query)
     return res_df if len(res_df) < 10 else res_df.head(10)
 
-df = pd.read_csv('s3://hackathon.datasets/Bank Account Fraud Dataset Suite/Base.csv', nrows=100)
-
 
 def get_agent(llm):
     memory = MemorySaver()
     tools = [query_financial_df, classify_fraud, show_column_distribution]
     agent_executor = create_react_agent(llm, tools, checkpointer=memory)
     return agent_executor
+
+
+# DATA
+df = pd.read_csv('s3://hackathon.datasets/Bank Account Fraud Dataset Suite/Base.csv', nrows=100)
 
 
 def clear_submit():
@@ -111,9 +130,16 @@ def clear_submit():
     st.session_state["submit"] = False
 
 
+def format_tool_decision(input_dict):
+    tool_name = input_dict[0]["name"]
+    arguments = input_dict[0]["args"]
+    formatted_args = ",\n\t".join([f'"{k}":"{v}"' for k, v in arguments.items()])
+    result = f'**🔧 The agent decided to use the tool:** `{tool_name}`\n\n**📋 With the following arguments:**\n```\n{formatted_args}\n```'
+    return result
 
-st.set_page_config(page_title="LangChain: Chat with pandas DataFrame", page_icon="🦜")
-st.title("🦜 LangChain: Chat with pandas DataFrame")
+
+st.set_page_config(page_title="Talk-to-Data: Chat with Financial DB", page_icon="🦜")
+st.title("📊 Talk-to-Data: Chat with Financial DB")
 
 if "messages" not in st.session_state or st.sidebar.button("Clear conversation history"):
     st.session_state["messages"] = [{"role": "assistant", "content": "How can I help you?"}]
@@ -121,22 +147,12 @@ if "messages" not in st.session_state or st.sidebar.button("Clear conversation h
 for msg in st.session_state.messages:
     st.chat_message(msg["role"]).write(msg["content"])
 
-
-def format_tool_decision(input_dict):
-    tool_name = input_dict[0]["name"]
-    arguments = input_dict[0]["args"]
-
-    formatted_args = ",\n\t".join([f'"{k}":"{v}"' for k, v in arguments.items()])
-
-    result = f'The agent decided to use the tool: "{tool_name}" with the following arguments:\n\t{formatted_args}'
-
-    return result
-
 if prompt := st.chat_input(placeholder="What is this data about?"):
     st.session_state.messages.append({"role": "user", "content": prompt})
     st.chat_message("user").write(prompt)
 
 
+    # MODEL
     llm = ChatBedrock(
         model_id="anthropic.claude-3-sonnet-20240229-v1:0",
         model_kwargs=dict(temperature=0),
@@ -156,24 +172,16 @@ if prompt := st.chat_input(placeholder="What is this data about?"):
             # st.write(chunk)
             if "agent" in chunk:
                 agnt_msg = chunk['agent']['messages'][0]
-                # st.write(agnt_msg)
                 if agnt_msg.content:
-                    st.session_state.messages.append({"role": "assistant", "content": agnt_msg.content})
                     st.write(agnt_msg.content)
+                    st.session_state.messages.append({"role": "assistant", "content": agnt_msg.content})
                 else:
-                    # agnt_query = agnt_msg.tool_calls[0]['args']['query']
-                    tool_msg = format_tool_decision(agnt_msg.tool_calls)
-                    st.session_state.messages.append({"role": "assistant", "content": tool_msg})
-                    st.write(tool_msg)
-
-
-                    # if agnt_query:
-                    #     st.write(agnt_query)
-                    #     st.session_state.messages.append({"role": "assistant", "content": agnt_msg.content})
-                    # else:
-                    #     st.write(agnt_msg.tool_calls)
-                    #     st.session_state.messages.append({"role": "assistant", "content": agnt_msg.content})
+                    # st.write(agnt_msg.tool_calls)
+                    # st.session_state.messages.append({"role": "assistant", "content": agnt_msg.tool_calls})
+                    formatted_msg = format_tool_decision(agnt_msg.tool_calls)
+                    st.write(formatted_msg)
+                    st.session_state.messages.append({"role": "assistant", "content": formatted_msg})
 
             else:
-                st.session_state.messages.append({"role": "assistant", "content": agnt_msg.content})
-                st.write(chunk['tools']['messages'][0].content)
+                st.write("Tool returned the following result:", chunk['tools']['messages'][0].content)
+                st.session_state.messages.append({"role": "assistant", "content": chunk['tools']['messages'][0].content})

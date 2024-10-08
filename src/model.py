@@ -1,6 +1,6 @@
 import logging
 import pandas as pd
-import joblib  # For saving and loading models
+import joblib
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.ensemble import RandomForestClassifier
