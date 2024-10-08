@@ -22,8 +22,15 @@ Finally, the processed information is transformed into an output decision, provi
 
 # Installation & Run
 
-## Project Setup with Poetry
+## LLM Model
+The LLM model is hosted on AWS Bedrock. To access the model, you need to have the configured aws accound with access to `anthropic.claude-3-sonnet` model
 
+## Dataset
+For this usecase we are using and opensourced [Bank Account Fraud Dataset](https://www.kaggle.com/datasets/sgpjesus/bank-account-fraud-dataset-neurips-2022?select=Variant+I.csv) from Kaggle. For the data storage we are using Snowflake. 
+- Download the dataset `Base.csv` and upload it to Snowflake into DATASETS/BASE table.
+- fill in the `.env` file with the Snowflake credentials.
+
+## Project Setup with Poetry
 Install poetry: https://python-poetry.org/docs/ (might take a while)
 
 Run the following command to initialize a Poetry project with a virtual environment:
