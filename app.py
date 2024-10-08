@@ -7,6 +7,7 @@ import pandas as pd
 from langchain.agents.agent import AgentExecutor
 # from src.tools import query_financial_df, classify_fraud, show_column_distribution
 from langchain_core.messages import HumanMessage
+import boto3
 
 import os
 
@@ -120,6 +121,17 @@ if "messages" not in st.session_state or st.sidebar.button("Clear conversation h
 for msg in st.session_state.messages:
     st.chat_message(msg["role"]).write(msg["content"])
 
+
+def format_tool_decision(input_dict):
+    tool_name = input_dict[0]["name"]
+    arguments = input_dict[0]["args"]
+
+    formatted_args = ",\n\t".join([f'"{k}":"{v}"' for k, v in arguments.items()])
+
+    result = f'The agent decided to use the tool: "{tool_name}" with the following arguments:\n\t{formatted_args}'
+
+    return result
+
 if prompt := st.chat_input(placeholder="What is this data about?"):
     st.session_state.messages.append({"role": "user", "content": prompt})
     st.chat_message("user").write(prompt)
@@ -144,9 +156,24 @@ if prompt := st.chat_input(placeholder="What is this data about?"):
             # st.write(chunk)
             if "agent" in chunk:
                 agnt_msg = chunk['agent']['messages'][0]
+                # st.write(agnt_msg)
                 if agnt_msg.content:
+                    st.session_state.messages.append({"role": "assistant", "content": agnt_msg.content})
                     st.write(agnt_msg.content)
                 else:
-                    st.write(agnt_msg.tool_calls)
+                    # agnt_query = agnt_msg.tool_calls[0]['args']['query']
+                    tool_msg = format_tool_decision(agnt_msg.tool_calls)
+                    st.session_state.messages.append({"role": "assistant", "content": tool_msg})
+                    st.write(tool_msg)
+
+
+                    # if agnt_query:
+                    #     st.write(agnt_query)
+                    #     st.session_state.messages.append({"role": "assistant", "content": agnt_msg.content})
+                    # else:
+                    #     st.write(agnt_msg.tool_calls)
+                    #     st.session_state.messages.append({"role": "assistant", "content": agnt_msg.content})
+
             else:
+                st.session_state.messages.append({"role": "assistant", "content": agnt_msg.content})
                 st.write(chunk['tools']['messages'][0].content)
