@@ -17,7 +17,7 @@ The LLM ensures that the entire process is coherent and logical, integrating dat
 Finally, the processed information is transformed into an output decision, providing the user with clear and actionable insights. This architecture leverages AWS services and advanced machine learning techniques to enable effective fraud detection and decision-making.​
 
 ## Architecture Diagram
-![alt text](https://github.com/DataArt/ai-data-hackathon-2024/blob/master/architecture/diagram.png?raw=true)
+![architecture diagram](https://github.com/DataArt/ai-data-hackathon-2024/blob/master/architecture/diagram.png?raw=true)
 
 
 # Installation & Run
