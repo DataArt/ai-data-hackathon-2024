@@ -160,8 +160,8 @@ def format_tool_decision(input_dict):
     return result
 
 
-st.set_page_config(page_title="Talk-to-Data: Chat with Financial DB", page_icon="🦜")
-st.title("🔎 Talk-to-Data: Ask Financial DB")
+st.set_page_config(page_title="QueryShield: Chat with your data", page_icon=":shield:")
+st.title(":shield: QueryShield: Chat with your data")
 
 
 if "messages" not in st.session_state or st.sidebar.button("Clear conversation history"):
