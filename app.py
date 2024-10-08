@@ -163,16 +163,18 @@ def format_tool_decision(input_dict):
 st.set_page_config(page_title="Talk-to-Data: Chat with Financial DB", page_icon="🦜")
 st.title("🔎 Talk-to-Data: Ask Financial DB")
 
+
 if "messages" not in st.session_state or st.sidebar.button("Clear conversation history"):
     st.session_state["messages"] = [{"role": "assistant", "content": "How can I help you?"}]
+
 
 for msg in st.session_state.messages:
     st.chat_message(msg["role"]).write(msg["content"])
 
+
 if prompt := st.chat_input(placeholder="What is this data about?"):
     st.session_state.messages.append({"role": "user", "content": prompt})
     st.chat_message("user").write(prompt)
-
 
     # MODEL and AGENT
     llm = ChatBedrock(
@@ -181,7 +183,7 @@ if prompt := st.chat_input(placeholder="What is this data about?"):
     )
     agent = get_agent(llm=llm)
 
-
+    # CHAT
     with st.chat_message("assistant"):
         for chunk in agent.stream(
                 {"messages": [HumanMessage(content=prompt)]}, config={"configurable": {"thread_id": 42}}
