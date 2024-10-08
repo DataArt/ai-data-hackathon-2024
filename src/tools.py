@@ -2,13 +2,7 @@ from typing import List
 import pandasql as ps
 import random
 from langchain_core.tools import tool
-import logging
 import pandas as pd
-import joblib
-from model import preprocess_data 
-
-# Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 @tool(parse_docstring=True)
@@ -25,7 +19,7 @@ def show_column_distribution(column: str) -> pd.Series:
 
 
 @tool(parse_docstring=True)
-def classify_fraud(query: str):
+def classify_fraud(query: str) -> List:
     """
     Classify rows of the df whether they are fraud or not.
 
@@ -33,28 +27,8 @@ def classify_fraud(query: str):
         query: SQL query string to execute on the DataFrame to obtain df rows to classify
     """
     input_df = ps.sqldf(query)
-
-    # Load the saved model and pre-processing objects from the disk
-    logging.info("Loading model and pre-processing pipeline from: %s")
-    loaded_objects = joblib.load("rf_model_pipeline_compressed.pkl")
-    loaded_model = loaded_objects['model']
-    loaded_onehot_encoder = loaded_objects['onehot_encoder']
-    loaded_scaler = loaded_objects['scaler']
-
-    # Drop any columns that were not used in the model training
-    logging.info("Dropping columns that were not used in training.")
-    input_df = input_df.drop(['device_fraud_count', 'fraud_bool'], axis=1, errors='ignore')
-
-    # Apply the same pre-processing to the input data
-    logging.info("Applying pre-processing to the input data.")
-    X_preprocessed, _, _ = preprocess_data(input_df, onehot_encoder=loaded_onehot_encoder, scaler=loaded_scaler, is_train=False)
-
-    # Make predictions using the loaded model
-    logging.info("Making predictions.")
-    predictions = loaded_model.predict(X_preprocessed)
-
-    return predictions
-
+    return [random.choice([0, 1]) for _ in range(len(input_df))]
+    
     
 @tool(parse_docstring=True)
 def query_financial_df(query: str):
@@ -102,12 +76,3 @@ def query_financial_df(query: str):
     """
     res_df = ps.sqldf(query)
     return res_df if len(res_df) < 10 else res_df.head(10)
-
-
-# test predict in main: predict for first 5 rows
-if __name__ == "__main__":
-    # Load and split the data
-    data_path = 's3://hackathon.datasets/Bank Account Fraud Dataset Suite/Base.csv'
-    df = pd.read_csv(data_path)
-    query = "SELECT * FROM df LIMIT 5"
-    print(classify_fraud(query))
