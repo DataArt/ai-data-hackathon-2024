@@ -30,23 +30,19 @@ def show_column_distribution(column: str) -> pd.Series:
     """
     global df
     
-    # Create the figure and axis for the plot
+    logging.info(f"Generating distribution plot for column: {column}")
     fig, ax = plt.subplots()
-    
-    # Generate the bar plot using matplotlib
     df[column].value_counts().plot(kind='bar', ax=ax)
     
-    # Set labels and title for better clarity
     ax.set_xlabel('Category')
     ax.set_ylabel('Count')
     ax.set_title(f'Distribution of {column}')
     
-    # Save the plot to a file
+    logging.info("Saving the plot as an image.")
     image_path = 'data/tmp_image.png'
-    plt.savefig(image_path)
-    
-    # Close the figure to free up memory
+    plt.savefig(image_path)    
     plt.close(fig)
+    logging.info(f"Image saved at: {image_path}")
     
     # Return the path to the saved image
     return image_path
@@ -198,4 +194,5 @@ if prompt := st.chat_input(placeholder="What is this data about?"):
                     st.write(formatted_msg)
                     if agnt_msg.tool_calls[0]["name"] == "show_column_distribution":
                         st.image('data/tmp_image.png')
+            else:
                     st.session_state.messages.append({"role": "assistant", "content": formatted_msg})

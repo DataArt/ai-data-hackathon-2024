@@ -28,10 +28,10 @@ Install poetry: https://python-poetry.org/docs/ (might take a while)
 
 Run the following command to initialize a Poetry project with a virtual environment:
 ```bash
-# Initialize a new project
+# Install dependencies
 poetry install --no-root
 
-# Install dependencies
+# Activate the virtual environment
 poetry shell
 ```
 
