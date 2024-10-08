@@ -40,9 +40,10 @@ def show_column_distribution(column: str) -> pd.Series:
     
     logging.info("Saving the plot as an image.")
     image_path = 'data/tmp_image.png'
-    plt.savefig(image_path)    
+    plt.savefig(image_path)
+    
+    logging.info("Closing the plot.")
     plt.close(fig)
-    logging.info(f"Image saved at: {image_path}")
     
     # Return the path to the saved image
     return image_path
@@ -180,10 +181,12 @@ if prompt := st.chat_input(placeholder="What is this data about?"):
     agent = get_agent(llm=llm)
 
     # CHAT
+    image_generated = False
     with st.chat_message("assistant"):
         for chunk in agent.stream(
                 {"messages": [HumanMessage(content=prompt)]}, config={"configurable": {"thread_id": 42}}
-        ):
+        ):  
+            logging.info(chunk)
             if "agent" in chunk:
                 agnt_msg = chunk['agent']['messages'][0]
                 if agnt_msg.content:
@@ -191,8 +194,9 @@ if prompt := st.chat_input(placeholder="What is this data about?"):
                     st.session_state.messages.append({"role": "assistant", "content": agnt_msg.content})
                 else:
                     formatted_msg = format_tool_decision(agnt_msg.tool_calls)
-                    st.write(formatted_msg)
                     if agnt_msg.tool_calls[0]["name"] == "show_column_distribution":
-                        st.image('data/tmp_image.png')
+                        image_generated = True
             else:
-                    st.session_state.messages.append({"role": "assistant", "content": formatted_msg})
+                if image_generated:
+                    st.image('data/tmp_image.png')
+                    image_generated = False
