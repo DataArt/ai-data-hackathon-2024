@@ -3,11 +3,11 @@ import joblib
 import logging
 
 from langgraph.checkpoint.memory import MemorySaver
-from langchain.callbacks import StreamlitCallbackHandler
 from langchain_aws import ChatBedrock
 from langchain_core.messages import HumanMessage
 from langgraph.prebuilt import create_react_agent
 from langchain_core.tools import tool
+import matplotlib.pyplot as plt
 
 import pandas as pd
 import pandasql as ps
@@ -20,14 +20,36 @@ from src.model import preprocess_data
 @tool(parse_docstring=True)
 def show_column_distribution(column: str) -> pd.Series:
     """
-    Print image of the column distribution of the financial DataFrame
+    Save the column distribution of the financial DataFrame as an image and return the image path.
 
     Args:
         column: Column name in the financial DataFrame.
+
+    Returns:
+        Path to the saved image.
     """
     global df
-    plot = df[column].value_counts().plot(kind='bar')
-    plot.get_figure()
+    
+    # Create the figure and axis for the plot
+    fig, ax = plt.subplots()
+    
+    # Generate the bar plot using matplotlib
+    df[column].value_counts().plot(kind='bar', ax=ax)
+    
+    # Set labels and title for better clarity
+    ax.set_xlabel('Category')
+    ax.set_ylabel('Count')
+    ax.set_title(f'Distribution of {column}')
+    
+    # Save the plot to a file
+    image_path = 'data/tmp_image.png'
+    plt.savefig(image_path)
+    
+    # Close the figure to free up memory
+    plt.close(fig)
+    
+    # Return the path to the saved image
+    return image_path
 
 
 @tool(parse_docstring=True)
@@ -42,7 +64,7 @@ def classify_fraud(query: str):
 
     # Load the saved model and pre-processing objects from the disk
     logging.info("Loading model and pre-processing pipeline from: %s")
-    loaded_objects = joblib.load("rf_model_pipeline_compressed.pkl")
+    loaded_objects = joblib.load("src/rf_model_pipeline_compressed.pkl")
     loaded_model = loaded_objects['model']
     loaded_onehot_encoder = loaded_objects['onehot_encoder']
     loaded_scaler = loaded_objects['scaler']
@@ -67,7 +89,6 @@ def query_financial_df(query: str):
     """
     Queries the financial DataFrame using SQL-like syntax.
     The DataFrame contains the following columns:
-        fraud_bool (int64): Indicator of fraud.
         income (float64): Reported income.
         name_email_similarity (float64): Similarity between name and email.
         prev_address_months_count (int64): Months at the previous address.
@@ -119,6 +140,7 @@ def get_agent(llm):
 
 # DATA
 df = pd.read_csv('s3://hackathon.datasets/Bank Account Fraud Dataset Suite/Base.csv', nrows=100)
+df = df.drop(columns=['fraud_bool'])
 
 
 def clear_submit():
@@ -139,7 +161,7 @@ def format_tool_decision(input_dict):
 
 
 st.set_page_config(page_title="Talk-to-Data: Chat with Financial DB", page_icon="🦜")
-st.title("📊 Talk-to-Data: Chat with Financial DB")
+st.title("🔎 Talk-to-Data: Ask Financial DB")
 
 if "messages" not in st.session_state or st.sidebar.button("Clear conversation history"):
     st.session_state["messages"] = [{"role": "assistant", "content": "How can I help you?"}]
@@ -152,36 +174,26 @@ if prompt := st.chat_input(placeholder="What is this data about?"):
     st.chat_message("user").write(prompt)
 
 
-    # MODEL
+    # MODEL and AGENT
     llm = ChatBedrock(
         model_id="anthropic.claude-3-sonnet-20240229-v1:0",
         model_kwargs=dict(temperature=0),
     )
-
     agent = get_agent(llm=llm)
 
 
     with st.chat_message("assistant"):
-        st_cb = StreamlitCallbackHandler(st.container(), expand_new_thoughts=False)
-        # response = agent.run(st.session_state.messages, callbacks=[st_cb])
-        # st.session_state.messages.append({"role": "assistant", "content": response})
-        # st.write(response)
         for chunk in agent.stream(
                 {"messages": [HumanMessage(content=prompt)]}, config={"configurable": {"thread_id": 42}}
         ):
-            # st.write(chunk)
             if "agent" in chunk:
                 agnt_msg = chunk['agent']['messages'][0]
                 if agnt_msg.content:
                     st.write(agnt_msg.content)
                     st.session_state.messages.append({"role": "assistant", "content": agnt_msg.content})
                 else:
-                    # st.write(agnt_msg.tool_calls)
-                    # st.session_state.messages.append({"role": "assistant", "content": agnt_msg.tool_calls})
                     formatted_msg = format_tool_decision(agnt_msg.tool_calls)
                     st.write(formatted_msg)
+                    if agnt_msg.tool_calls[0]["name"] == "show_column_distribution":
+                        st.image('data/tmp_image.png')
                     st.session_state.messages.append({"role": "assistant", "content": formatted_msg})
-
-            else:
-                st.write("Tool returned the following result:", chunk['tools']['messages'][0].content)
-                st.session_state.messages.append({"role": "assistant", "content": chunk['tools']['messages'][0].content})
